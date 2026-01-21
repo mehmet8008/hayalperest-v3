@@ -44,7 +44,7 @@ export default async function CommunityPage() {
   // 2. Mesajları Çek (En yeniden eskiye)
   // Yazanın adını ve unvanını da çekiyoruz (JOIN işlemi)
   const [messages]: any = await db.query(`
-    SELECT m.id, m.content, m.created_at, u.username, u.title, u.id as sender_id
+    SELECT m.id, m.content, m.created_at, u.username, u.title, u.image_url, u.id as sender_id
     FROM messages m
     JOIN users u ON m.user_id = u.id
     ORDER BY m.created_at DESC
@@ -94,9 +94,20 @@ export default async function CommunityPage() {
                     ) : (
                         messages.map((msg: any) => (
                             <div key={msg.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-lg flex-shrink-0">
-                                    💬
-                                </div>
+                                {/* Profil Resmi */}
+<div className="flex-shrink-0">
+    {msg.image_url ? (
+        <img 
+            src={msg.image_url} 
+            alt={msg.username} 
+            className="w-10 h-10 rounded-full border border-slate-700 object-cover"
+        />
+    ) : (
+        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-lg">
+            👤
+        </div>
+    )}
+</div>
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="font-bold text-white text-sm">{msg.username}</span>

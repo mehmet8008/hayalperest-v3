@@ -11,25 +11,39 @@ export default async function DashboardPage() {
 
   const db = getDb();
   
-  // Kullanıcıyı veritabanından çek
+  // ... (üst kısımlar aynı)
+
+  // Kullanıcıyı veritabanından çek (veya oluştur)
   let dbUser = null;
   try {
     const [rows]: any = await db.query('SELECT * FROM users WHERE clerk_id = ?', [userId]);
     dbUser = rows[0];
     
+    // Clerk'teki güncel resmi al
+    const currentImage = user.imageUrl;
+
     if (!dbUser) {
-      // Eğer yoksa oluştur
+      // Yeni kayıt
       await db.query(
-        'INSERT INTO users (clerk_id, email, username) VALUES (?, ?, ?)',
-        [userId, user.emailAddresses[0].emailAddress, user.firstName]
+        'INSERT INTO users (clerk_id, email, username, image_url) VALUES (?, ?, ?, ?)',
+        [userId, user.emailAddresses[0].emailAddress, user.firstName, currentImage]
       );
       // Tekrar çek
       const [newRows]: any = await db.query('SELECT * FROM users WHERE clerk_id = ?', [userId]);
       dbUser = newRows[0];
+    } else {
+      // MEVCUT KULLANICI: Eğer resmi değişmişse veya yoksa güncelle
+      // (Her girişte güncelliyoruz ki Clerk'te resim değiştirirse buraya da yansısın)
+      if (dbUser.image_url !== currentImage) {
+         await db.query('UPDATE users SET image_url = ? WHERE clerk_id = ?', [currentImage, userId]);
+         dbUser.image_url = currentImage; // Yerel değişkeni de güncelle
+      }
     }
   } catch (err) {
     console.error("DB Hatası:", err);
   }
+
+  // ... (alt kısımlar aynı)
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
