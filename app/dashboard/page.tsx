@@ -37,15 +37,19 @@ export default async function DashboardPage() {
         
         {/* ÜST BAŞLIK & PROFİL YÖNETİMİ */}
         <div className="flex justify-between items-center mb-10 border-b border-slate-800 pb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white">
+          <div className="flex flex-col">
+            <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
               Komuta Merkezi 🚀
             </h1>
-            <p className="text-slate-400 text-sm">Hoş geldin, {dbUser?.title || "Gezgin"} {user.firstName}.</p>
+            
+            {/* YENİ EKLENEN KISIM: Ana Sayfaya Dönüş Linki */}
+            <Link href="/" className="text-xs text-cyan-400 hover:text-white hover:underline mt-1 flex items-center gap-1 transition-colors w-fit">
+               <span>🏠</span> Ana Sayfaya Git
+            </Link>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Online Işığı (Mobilde Gizle, Masaüstünde Göster) */}
+            {/* Online Işığı */}
             <div className="hidden md:flex flex-col items-end">
                 <div className="text-[10px] text-slate-500 uppercase">SİSTEM</div>
                 <div className="text-green-400 text-xs font-bold flex items-center gap-1">
@@ -53,7 +57,7 @@ export default async function DashboardPage() {
                 </div>
             </div>
 
-            {/* ÇIKIŞ VE PROFİL BUTONU (CLERK) */}
+            {/* ÇIKIŞ VE PROFİL BUTONU */}
             <div className="bg-slate-900 p-1 rounded-full border border-slate-700">
                 <UserButton afterSignOutUrl="/"/>
             </div>
