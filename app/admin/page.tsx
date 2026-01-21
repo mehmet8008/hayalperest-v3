@@ -56,9 +56,19 @@ export default async function AdminPage() {
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
       <div className="max-w-4xl mx-auto">
         
-        <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-red-500">YÖNETİM PANELİ 🛠️</h1>
-            <Link href="/dashboard" className="text-slate-400 hover:text-white">Dashboard'a Dön →</Link>
+      {/* NAVİGASYON GÜNCELLEMESİ */}
+      <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+            <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-red-500">YÖNETİM PANELİ 🛠️</h1>
+                <p className="text-xs text-slate-500">İçerik Yönetim Sistemi</p>
+            </div>
+            
+            {/* GERİ DÖN BUTONU */}
+            <Link href="/dashboard" className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 px-4 py-2 rounded-lg text-sm transition-colors border border-slate-700">
+                <span>⬅</span>
+                <span className="hidden md:inline">Komuta Merkezine Dön</span>
+                <span className="md:hidden">Dön</span>
+            </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
