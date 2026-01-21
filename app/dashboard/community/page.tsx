@@ -1,7 +1,32 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
+import { revalidatePath } from "next/cache";
 import Link from "next/link";
+
+// --- SERVER ACTION: MESAJ GÖNDER ---
+async function postMessage(formData: FormData) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const content = formData.get("content") as string;
+  if (!content || content.trim() === "") return;
+
+  const db = getDb();
+  
+  // Önce kullanıcının veritabanındaki ID'sini bul
+  const [userRows]: any = await db.query('SELECT id FROM users WHERE clerk_id = ?', [userId]);
+  const dbUser = userRows[0];
+
+  if (dbUser) {
+    await db.query(
+      'INSERT INTO messages (user_id, content) VALUES (?, ?)',
+      [dbUser.id, content]
+    );
+    revalidatePath("/dashboard/community");
+  }
+}
 
 export default async function CommunityPage() {
   const { userId } = await auth();
@@ -9,60 +34,105 @@ export default async function CommunityPage() {
 
   const db = getDb();
 
-  // Tüm kullanıcıları çek (Kendin hariç herkesi görmek istersen WHERE ekleriz ama şimdilik herkesi görelim)
+  // 1. Kullanıcıları Çek
   const [users]: any = await db.query(`
-    SELECT id, username, title, bio, coins, created_at 
+    SELECT id, username, title, bio, coins 
     FROM users 
     ORDER BY coins DESC
+  `);
+
+  // 2. Mesajları Çek (En yeniden eskiye)
+  // Yazanın adını ve unvanını da çekiyoruz (JOIN işlemi)
+  const [messages]: any = await db.query(`
+    SELECT m.id, m.content, m.created_at, u.username, u.title, u.id as sender_id
+    FROM messages m
+    JOIN users u ON m.user_id = u.id
+    ORDER BY m.created_at DESC
+    LIMIT 50
   `);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
       <div className="max-w-6xl mx-auto">
         
-        {/* Başlık */}
+        {/* Başlık ve Navigasyon */}
         <div className="flex items-center gap-4 mb-8">
-           <Link href="/dashboard" className="p-2 rounded-full bg-slate-900 hover:bg-slate-800 transition-colors">⬅</Link>
+           <Link href="/dashboard" className="p-2 rounded-full bg-slate-900 hover:bg-slate-800 transition-colors border border-slate-700">⬅</Link>
            <div>
              <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
-               HayalPerest Nüfusu 🌍
+               Meydan 🌍
              </h1>
-             <p className="text-slate-400">Bu evrende yaşayan dijital vatandaşlar.</p>
+             <p className="text-slate-400 text-sm">Vatandaşların buluşma noktası.</p>
            </div>
         </div>
 
-        {/* Kullanıcı Kartları */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {users.map((citizen: any, index: number) => (
-            <div key={citizen.id} className="relative group bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-blue-500/50 transition-all hover:-translate-y-1">
-               
-               {/* Sıralama Rozeti (En zengin 3 kişi için) */}
-               {index === 0 && <div className="absolute top-0 right-0 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-bl-lg">🥇 Lider</div>}
-               {index === 1 && <div className="absolute top-0 right-0 bg-slate-400 text-black text-xs font-bold px-2 py-1 rounded-bl-lg">🥈 İkinci</div>}
-               {index === 2 && <div className="absolute top-0 right-0 bg-orange-700 text-white text-xs font-bold px-2 py-1 rounded-bl-lg">🥉 Üçüncü</div>}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* --- SOL TARA: SOHBET DUVARI (YENİ) --- */}
+            <div className="lg:col-span-2 space-y-6">
+                
+                {/* Mesaj Yazma Kutusu */}
+                <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl backdrop-blur-sm sticky top-4 z-10 shadow-lg">
+                    <form action={postMessage} className="flex gap-2">
+                        <input 
+                            name="content" 
+                            placeholder="Evrene bir mesaj bırak..." 
+                            maxLength={280}
+                            required
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors"
+                        />
+                        <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2 rounded-lg transition-colors">
+                            YAZ 📢
+                        </button>
+                    </form>
+                </div>
 
-               <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-slate-700">
-                    👤
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white">{citizen.username || "İsimsiz Vatandaş"}</h3>
-                    <div className="text-xs text-cyan-400">{citizen.title || "Gezgin"}</div>
-                  </div>
-               </div>
-
-               <p className="text-slate-400 text-sm mb-4 line-clamp-2 italic">
-                 "{citizen.bio || 'Henüz bir biyografi yazmadı.'}"
-               </p>
-
-               <div className="flex justify-between items-center text-xs text-slate-500 border-t border-slate-800 pt-4">
-                  <span>Varlık: <span className="text-green-400 font-mono">{citizen.coins} HP</span></span>
-                  <Link href={`/profile/${citizen.id}`} className="text-blue-400 hover:text-white transition-colors">
-                    Profili İncele →
-                  </Link>
-               </div>
+                {/* Mesaj Listesi */}
+                <div className="space-y-4">
+                    {messages.length === 0 ? (
+                        <div className="text-center py-10 text-slate-500 italic">Henüz kimse konuşmadı. Sessizliği sen boz!</div>
+                    ) : (
+                        messages.map((msg: any) => (
+                            <div key={msg.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-lg flex-shrink-0">
+                                    💬
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-bold text-white text-sm">{msg.username}</span>
+                                        <span className="text-[10px] bg-slate-800 text-cyan-400 px-1.5 rounded">{msg.title || 'Gezgin'}</span>
+                                        <span className="text-[10px] text-slate-600">
+                                            {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </span>
+                                    </div>
+                                    <p className="text-slate-300 text-sm">{msg.content}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
-          ))}
+
+            {/* --- SAĞ TARAF: NÜFUS LİSTESİ (ESKİ KARTLAR) --- */}
+            <div className="lg:col-span-1">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    🎖️ Liderler
+                </h3>
+                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    {users.map((citizen: any, index: number) => (
+                        <Link href={`/profile/${citizen.id}`} key={citizen.id} className="block group">
+                            <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-blue-500/50 transition-all flex items-center gap-3">
+                                <div className="font-mono text-slate-500 w-4">{index + 1}.</div>
+                                <div className="flex-1">
+                                    <div className="font-bold text-white text-sm group-hover:text-blue-400">{citizen.username}</div>
+                                    <div className="text-xs text-slate-500">{citizen.coins} HP</div>
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+
         </div>
 
       </div>
