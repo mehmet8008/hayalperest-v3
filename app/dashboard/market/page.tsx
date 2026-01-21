@@ -42,13 +42,22 @@ export default async function MarketPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
-      <div className="flex justify-between items-center mb-10 border-b border-slate-800 pb-6">
-        <div>
-           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
-             HayalPerest Store 🛍️
-           </h1>
-           <p className="text-slate-400">Fiziksel ve Dijital Koleksiyonlar</p>
+      {/* --- GÜNCELLENMİŞ BAŞLIK VE NAVİGASYON --- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10 border-b border-slate-800 pb-6">
+        
+        <div className="flex items-center gap-4">
+            {/* BURAYA GERİ DÖN BUTONU EKLENDİ */}
+            <Link href="/dashboard" className="p-3 bg-slate-900 rounded-xl border border-slate-700 hover:border-pink-500 transition-colors">
+                ⬅
+            </Link>
+            <div>
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
+                    HayalPerest Store 🛍️
+                </h1>
+                <p className="text-slate-400 text-sm">Fiziksel ve Dijital Koleksiyonlar</p>
+            </div>
         </div>
+        
         <div className="bg-slate-900 border border-yellow-500/30 px-6 py-3 rounded-full flex items-center gap-3">
            <span className="text-2xl">💰</span>
            <span className="text-xl font-bold text-yellow-400">{myCoins} HP Coin</span>

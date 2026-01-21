@@ -1,165 +1,89 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 
-// --- SERVER ACTION (Veriyi Kaydetme İşlemi) ---
+// --- SERVER ACTION: BİLGİLERİ GÜNCELLE ---
 async function updateProfile(formData: FormData) {
   "use server";
-  
   const { userId } = await auth();
   if (!userId) return;
 
+  const db = getDb();
   const title = formData.get("title") as string;
   const bio = formData.get("bio") as string;
-  const gender = formData.get("gender") as string;
-  const height = formData.get("height");
-  const weight = formData.get("weight");
+  const height = formData.get("height") as string;
+  const weight = formData.get("weight") as string;
 
-  const db = getDb();
-  
   await db.query(
-    `UPDATE users SET title = ?, bio = ?, gender = ?, height = ?, weight = ? WHERE clerk_id = ?`,
-    [title, bio, gender, height, weight, userId]
+    'UPDATE users SET title = ?, bio = ?, height = ?, weight = ? WHERE clerk_id = ?',
+    [title, bio, height, weight, userId]
   );
-
-  // İşlem bitince sayfayı yenile ki yeni veriler görünsün
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard"); // Ana paneli de güncelle
 }
 
-// --- SAYFA TASARIMI ---
 export default async function SettingsPage() {
   const { userId } = await auth();
-  const user = await currentUser();
   if (!userId) redirect("/");
 
   const db = getDb();
-  
-  // Mevcut bilgileri çekelim ki formda dolu gelsin
   const [rows]: any = await db.query('SELECT * FROM users WHERE clerk_id = ?', [userId]);
-  const dbUser = rows[0];
+  const user = rows[0];
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         
-        {/* Başlık */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-500">
-            Dijital İkiz Yapılandırması 🧬
-          </h1>
-          <p className="text-slate-400 mt-2">
-            Fiziksel verilerini gir ki, yapay zeka sana en uygun kıyafetleri ve bedeni otomatik hesaplasın.
-          </p>
+        {/* --- NAVİGASYON (GERİ DÖNME GARANTİSİ) --- */}
+        <div className="flex items-center gap-4 mb-8 border-b border-slate-800 pb-4">
+           {/* Mobilde parmakla basması kolay olsun diye büyük buton */}
+           <Link href="/dashboard" className="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl flex items-center gap-2 transition-colors">
+             <span className="text-xl">⬅</span>
+             <span className="font-bold text-sm">Geri Dön</span>
+           </Link>
+           
+           <div>
+             <h1 className="text-2xl font-bold text-white">Kimlik Ayarları 🧬</h1>
+             <p className="text-slate-400 text-xs">Dijital İkizini Şekillendir</p>
+           </div>
         </div>
 
-        <form action={updateProfile} className="space-y-8">
-          
-          {/* Bölüm 1: Kimlik */}
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 md:p-8 backdrop-blur-sm">
-            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-              <span className="text-2xl">🆔</span> Kimlik Bilgileri
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Görünen İsim (Clerk'ten)</label>
-                <input 
-                  type="text" 
-                  disabled 
-                  value={user?.firstName || ""} 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm text-cyan-400 mb-2 font-medium">Unvan / Lakap</label>
-                <input 
-                  name="title" 
-                  type="text" 
-                  defaultValue={dbUser?.title || ""}
-                  placeholder="Örn: Moda Tutkunu, Gamer..." 
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-                />
-              </div>
+        {/* --- AYAR FORMU --- */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 md:p-8">
+            <form action={updateProfile} className="space-y-6">
+                
+                {/* Unvan */}
+                <div>
+                    <label className="block text-xs text-slate-500 uppercase mb-2">Unvan / Meslek</label>
+                    <input name="title" defaultValue={user?.title} placeholder="Örn: Siber Güvenlik Uzmanı" className="w-full bg-slate-950 border border-slate-700 p-4 rounded-lg text-white focus:border-purple-500 outline-none transition-colors" />
+                </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm text-slate-400 mb-2">Biyografi (Hakkında)</label>
-                <textarea 
-                  name="bio" 
-                  rows={3}
-                  defaultValue={dbUser?.bio || ""}
-                  placeholder="Kendini HayalPerest evrenine tanıt..." 
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
+                {/* Biyografi */}
+                <div>
+                    <label className="block text-xs text-slate-500 uppercase mb-2">Biyografi</label>
+                    <textarea name="bio" defaultValue={user?.bio} placeholder="Kendini tanıt..." rows={3} className="w-full bg-slate-950 border border-slate-700 p-4 rounded-lg text-white focus:border-purple-500 outline-none transition-colors" />
+                </div>
 
-          {/* Bölüm 2: Fiziksel Veriler (Kritik Kısım) */}
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 md:p-8 backdrop-blur-sm relative overflow-hidden">
-             {/* Arka plan efekti */}
-             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[50px] rounded-full pointer-events-none"></div>
+                {/* Fiziksel Veriler */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs text-slate-500 uppercase mb-2">Boy (cm)</label>
+                        <input name="height" type="number" defaultValue={user?.height} placeholder="180" className="w-full bg-slate-950 border border-slate-700 p-4 rounded-lg text-white" />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-slate-500 uppercase mb-2">Kilo (kg)</label>
+                        <input name="weight" type="number" defaultValue={user?.weight} placeholder="75" className="w-full bg-slate-950 border border-slate-700 p-4 rounded-lg text-white" />
+                    </div>
+                </div>
 
-            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-              <span className="text-2xl">📏</span> Fiziksel Ölçüler (Akıllı Beden İçin)
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Cinsiyet</label>
-                <select 
-                  name="gender" 
-                  defaultValue={dbUser?.gender || "unspecified"}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                >
-                  <option value="unspecified">Belirtmek İstemiyorum</option>
-                  <option value="male">Erkek</option>
-                  <option value="female">Kadın</option>
-                  <option value="non-binary">Non-binary</option>
-                </select>
-              </div>
+                <button className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-purple-900/20 transition-transform active:scale-95">
+                    KİMLİĞİ GÜNCELLE
+                </button>
+            </form>
+        </div>
 
-              <div>
-                <label className="block text-sm text-purple-400 mb-2 font-medium">Boy (cm)</label>
-                <input 
-                  name="height" 
-                  type="number" 
-                  placeholder="175" 
-                  defaultValue={dbUser?.height || ""}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-purple-400 mb-2 font-medium">Kilo (kg)</label>
-                <input 
-                  name="weight" 
-                  type="number" 
-                  placeholder="70" 
-                  defaultValue={dbUser?.weight || ""}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                />
-              </div>
-            </div>
-            
-            <p className="text-xs text-slate-500 mt-4">
-              * Bu veriler sadece sana uygun bedeni (S/M/L) hesaplamak ve dijital ikizini oluşturmak için kullanılır.
-            </p>
-          </div>
-
-          {/* Kaydet Butonu */}
-          <div className="flex justify-end">
-            <button 
-              type="submit" 
-              className="px-8 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 transition-all hover:scale-105"
-            >
-              Verileri Güncelle ve Kaydet 💾
-            </button>
-          </div>
-
-        </form>
       </div>
     </div>
   );
