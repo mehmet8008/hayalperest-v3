@@ -1,24 +1,45 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { ClerkProvider } from '@clerk/nextjs'
+import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 
-const inter = Inter({ subsets: ["latin"] });
-
+// 1. Site Başlığı ve Açıklaması
 export const metadata: Metadata = {
-  title: "HayalPerest Metaverse",
-  description: "Sınırların Ötesinde Bir Evren",
+  title: "HayalPerest | Metaverse",
+  description: "Fiziksel ve Dijital Evrenin Birleşimi",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
+// 2. Mobil Uygulama Ayarları (PWA için Kritik Kısım)
+export const viewport: Viewport = {
+  themeColor: "#020617", // Telefonun üst barını siyah yapar
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1, // Mobilde zoom yapıp tasarımı bozmasınlar
+  userScalable: false,
+};
+
+// 3. Ana İskelet
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="tr" className="dark">
-        <body className={inter.className}>{children}</body>
+    // ClerkProvider: Tüm siteyi kimlik doğrulama sistemiyle sarar
+    // appearance={{ baseTheme: dark }}: Giriş ekranını otomatik koyu tema yapar
+    <ClerkProvider
+      appearance={{
+        baseTheme: dark,
+        variables: { colorPrimary: "#ec4899" } // HayalPerest Pembesi
+      }}
+    >
+      <html lang="tr">
+        <body className="bg-slate-950 text-white antialiased">
+           {children}
+        </body>
       </html>
     </ClerkProvider>
   );

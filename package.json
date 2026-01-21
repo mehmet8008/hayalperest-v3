@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.36.8",
+    "@clerk/themes": "^2.4.48",
     "mysql2": "^3.16.1",
     "next": "16.1.4",
     "react": "19.2.3",
