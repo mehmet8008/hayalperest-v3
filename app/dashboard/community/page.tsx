@@ -44,7 +44,7 @@ export default async function CommunityPage() {
   // 2. Mesajları Çek (En yeniden eskiye)
   // Yazanın adını ve unvanını da çekiyoruz (JOIN işlemi)
   const [messages]: any = await db.query(`
-    SELECT m.id, m.content, m.created_at, u.username, u.title, u.image_url, u.id as sender_id
+    SELECT m.id, m.content, m.created_at, u.username, u.title, u.image_url, u.equipped_badge, u.id as sender_id
     FROM messages m
     JOIN users u ON m.user_id = u.id
     ORDER BY m.created_at DESC
@@ -112,6 +112,12 @@ export default async function CommunityPage() {
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="font-bold text-white text-sm">{msg.username}</span>
                                         <span className="text-[10px] bg-slate-800 text-cyan-400 px-1.5 rounded">{msg.title || 'Gezgin'}</span>
+                                        {/* Kuşanılan Eşya Rozeti */}
+{msg.equipped_badge && (
+    <span className="text-[10px] bg-blue-900/30 text-blue-400 border border-blue-500/30 px-1.5 rounded flex items-center gap-1">
+        {msg.equipped_badge}
+    </span>
+)}
                                         <span className="text-[10px] text-slate-600">
                                             {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                         </span>
