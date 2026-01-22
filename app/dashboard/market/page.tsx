@@ -64,50 +64,53 @@ export default async function MarketPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {products.map((product: any) => (
-          <div key={product.id} className="group bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-pink-500/50 transition-all">
-            
-            {/* Resim Alanı */}
-            <div className="h-48 bg-slate-800 flex items-center justify-center text-5xl relative">
-               {product.category === 'Aksesuar' ? '👓' : product.category === 'Giyim' ? '🧥' : '📦'}
-               
-               {/* TÜR ETİKETİ (YENİ) */}
-               <div className={`absolute top-2 right-2 px-2 py-1 rounded text-[10px] font-bold border ${
-                 product.item_type === 'PHYSICAL' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                 product.item_type === 'HYBRID' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
-               }`}>
-                 {product.item_type === 'PHYSICAL' ? '📦 FİZİKSEL KARGO' :
-                  product.item_type === 'HYBRID' ? '✨ FİZİKSEL + DİJİTAL' :
-                  '👾 SADECE DİJİTAL'}
-               </div>
-            </div>
+      {/* ... Kodun üst kısımları aynı ... */}
 
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-white mb-1">{product.name}</h3>
-              <p className="text-slate-400 text-sm mb-4 line-clamp-2">{product.description}</p>
-              
-              <div className="flex items-center justify-between mt-4">
-                <span className="text-xl font-bold text-cyan-400">{product.price} HP</span>
-                <form action={buyItem}>
-                  <input type="hidden" name="productId" value={product.id} />
-                  <input type="hidden" name="price" value={product.price} />
-                  {myCoins >= product.price ? (
-                    <button type="submit" className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-pink-600/20">
-                      Satın Al
-                    </button>
+        {/* ÜRÜN LİSTESİ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product: any) => (
+            // KARTIN TAMAMI ARTIK BİR LİNK
+            <Link 
+                key={product.id} 
+                href={`/dashboard/market/${product.id}`}
+                className="group bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-pink-500/50 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-pink-900/10 flex flex-col"
+            >
+               
+               {/* Resim Alanı */}
+               <div className="h-48 bg-slate-950 relative flex items-center justify-center overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent z-10"></div>
+                  
+                  {product.image_url && product.image_url.startsWith('http') ? (
+                     <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                   ) : (
-                    <button disabled className="px-4 py-2 bg-slate-800 text-slate-500 text-sm font-bold rounded-lg cursor-not-allowed">
-                      Yetersiz
-                    </button>
+                     <div className="text-6xl opacity-30 group-hover:scale-110 transition-transform">
+                        {product.category === 'Aksesuar' ? '👓' : product.category === 'Giyim' ? '🧥' : '📦'}
+                     </div>
                   )}
-                </form>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+
+                  <div className="absolute top-3 right-3 z-20 bg-slate-900/80 backdrop-blur text-white text-xs font-bold px-2 py-1 rounded border border-slate-700">
+                    {product.item_type || 'Fiziksel'}
+                  </div>
+               </div>
+
+               {/* İçerik */}
+               <div className="p-5 flex flex-col flex-1">
+                  <div className="text-xs text-pink-500 font-bold uppercase mb-1">{product.category}</div>
+                  <h3 className="text-xl font-bold text-white mb-2 line-clamp-1">{product.name}</h3>
+                  <p className="text-slate-400 text-sm line-clamp-2 mb-4 flex-1">
+                    {product.description || "Açıklama yok."}
+                  </p>
+
+                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
+                     <div className="text-2xl font-bold text-white">{product.price} <span className="text-sm text-yellow-500">HP</span></div>
+                     <span className="text-sm text-slate-500 group-hover:text-white transition-colors">İncele →</span>
+                  </div>
+               </div>
+            </Link>
+          ))}
+        </div>
+        
+{/* ... Kodun geri kalanı aynı ... */}
       <div className="mt-12 text-center">
         <Link href="/dashboard" className="text-slate-500 hover:text-white underline">&larr; Dön</Link>
       </div>
