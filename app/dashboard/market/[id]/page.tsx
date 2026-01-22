@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
-// --- SERVER ACTION: SATIN AL (Burada da çalışmalı) ---
+// --- SERVER ACTION: SATIN AL (DÜZELTİLMİŞ VERSİYON) ---
 async function buyItem(formData: FormData) {
   "use server";
   const { userId } = await auth();
@@ -14,28 +14,35 @@ async function buyItem(formData: FormData) {
   const price = Number(formData.get("price"));
 
   const db = getDb();
+  let success = false;
 
-  // 1. Kullanıcıyı ve Bakiyesini Bul
-  const [userRows]: any = await db.query('SELECT id, coins FROM users WHERE clerk_id = ?', [userId]);
-  const user = userRows[0];
+  try {
+    // 1. Kullanıcıyı ve Bakiyesini Bul
+    const [userRows]: any = await db.query('SELECT id, coins FROM users WHERE clerk_id = ?', [userId]);
+    const user = userRows[0];
 
-  if (user.coins >= price) {
-    // 2. Parayı Düş
-    await db.query('UPDATE users SET coins = coins - ? WHERE id = ?', [price, user.id]);
+    if (user && user.coins >= price) {
+      // 2. Parayı Düş
+      await db.query('UPDATE users SET coins = coins - ? WHERE id = ?', [price, user.id]);
 
-    // 3. Envantere Ekle
-    await db.query(
-      'INSERT INTO inventory (clerk_id, product_id, product_name) VALUES (?, ?, ?)',
-      [userId, productId, 'Ürün'] // İsmi SQL join ile çekeceğiz, burası log için
-    );
+      // 3. Envantere Ekle (HATALI KISIM DÜZELTİLDİ: 'product_name' kaldırıldı)
+      await db.query(
+        'INSERT INTO inventory (clerk_id, product_id) VALUES (?, ?)',
+        [userId, productId]
+      );
 
+      success = true;
+    }
+  } catch (error) {
+    console.error("SATIN ALMA HATASI:", error); // Hata olursa loglara basar
+  }
+
+  // İşlem başarılıysa yönlendir (Try-Catch dışında olmalı)
+  if (success) {
     revalidatePath("/dashboard/market");
     revalidatePath("/dashboard/inventory");
     revalidatePath("/dashboard/finance");
-    redirect("/dashboard/inventory"); // Satın alınca Çantaya at
-  } else {
-    // Para yetmezse (Hata yönetimi eklenebilir)
-    return;
+    redirect("/dashboard/inventory");
   }
 }
 
@@ -58,7 +65,7 @@ export default async function ProductDetailPage({
     return notFound();
   }
 
-  // Kullanıcı Bakiyesini Çek (Yetersiz bakiye uyarısı için)
+  // Kullanıcı Bakiyesini Çek
   const [users]: any = await db.query('SELECT coins FROM users WHERE clerk_id = ?', [userId]);
   const userCoins = users[0]?.coins || 0;
   const canBuy = userCoins >= product.price;
