@@ -3,34 +3,108 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import type { DatabaseError } from "@/lib/types";
+import mysql from "mysql2/promise";
 
 // --- SERVER ACTION: SEPETİ TEMİZLE ---
 async function clearCart() {
     "use server";
-    const { userId } = await auth();
-    const db = getDb();
-    // Kullanıcı ID'sini bulup sepetini sil (Basit versiyon)
-    const [u]: any = await db.query('SELECT id FROM users WHERE clerk_id = ?', [userId]);
-    if(u[0]) await db.query('DELETE FROM cart WHERE user_id = ?', [u[0].id]);
-    revalidatePath("/dashboard/cart");
+    
+    try {
+        // 1. Authentication check
+        const { userId } = await auth();
+        if (!userId) {
+            throw new Error("Kullanıcı kimlik doğrulaması başarısız");
+        }
+
+        // 2. Get database connection
+        let db: mysql.Pool;
+        try {
+            db = getDb();
+        } catch (dbError) {
+            const error = dbError as DatabaseError;
+            console.error("Database connection error:", error);
+            throw new Error("Veritabanı bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.");
+        }
+
+        // 3. Get user ID
+        let userRows: mysql.RowDataPacket[];
+        try {
+            [userRows] = await db.query<mysql.RowDataPacket[]>(
+                'SELECT id FROM users WHERE clerk_id = ?',
+                [userId]
+            );
+        } catch (error) {
+            const dbError = error as DatabaseError;
+            console.error("User query error:", dbError);
+            throw new Error("Kullanıcı bilgileri alınamadı. Veritabanı hatası.");
+        }
+
+        const dbUserId = userRows[0]?.id as number | undefined;
+        if (!dbUserId) {
+            // User doesn't exist, nothing to clear
+            revalidatePath("/dashboard/cart");
+            return;
+        }
+
+        // 4. Clear cart
+        try {
+            await db.query('DELETE FROM cart WHERE user_id = ?', [dbUserId]);
+        } catch (error) {
+            const dbError = error as DatabaseError;
+            console.error("Cart clear error:", dbError);
+            throw new Error("Sepet temizlenemedi. Veritabanı hatası.");
+        }
+
+        // 5. Success - revalidate
+        revalidatePath("/dashboard/cart");
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu";
+        console.error("clearCart error:", error);
+        // Don't throw - just log and revalidate to show current state
+        revalidatePath("/dashboard/cart");
+    }
 }
 
 export default async function CartPage() {
   const { userId } = await auth();
   if (!userId) redirect("/");
 
-  const db = getDb();
+  let db: mysql.Pool;
+  try {
+    db = getDb();
+  } catch (error) {
+    console.error("Database connection error in CartPage:", error);
+    throw new Error("Veritabanı bağlantısı kurulamadı");
+  }
   
-  // Sepetteki ürünleri ve toplam fiyatı çek
-  const [cartItems]: any = await db.query(`
-    SELECT c.id, c.quantity, p.name, p.price, p.image_url, p.category 
-    FROM cart c
-    JOIN products p ON c.product_id = p.id
-    WHERE c.user_id = (SELECT id FROM users WHERE clerk_id = ?)
-  `, [userId]);
+  // Get cart items and calculate total
+  let cartItems: mysql.RowDataPacket[] = [];
+  let total = 0;
 
-  // Toplam Tutar Hesabı
-  const total = cartItems.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0);
+  try {
+    const [items] = await db.query<mysql.RowDataPacket[]>(`
+      SELECT c.id, c.quantity, p.name, p.price, p.image_url, p.category 
+      FROM cart c
+      JOIN products p ON c.product_id = p.id
+      WHERE c.user_id = (SELECT id FROM users WHERE clerk_id = ?)
+    `, [userId]);
+    
+    cartItems = items || [];
+    
+    // Calculate total
+    total = cartItems.reduce((acc: number, item: mysql.RowDataPacket) => {
+      const price = Number(item.price) || 0;
+      const quantity = Number(item.quantity) || 0;
+      return acc + (price * quantity);
+    }, 0);
+  } catch (error) {
+    console.error("Error fetching cart items:", error);
+    // Continue with empty cart to show error state
+    cartItems = [];
+    total = 0;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">

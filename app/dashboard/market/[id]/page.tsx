@@ -3,71 +3,154 @@ import { redirect, notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import type { User, Product, CartItem, DatabaseError } from "@/lib/types";
+import mysql from "mysql2/promise";
 
-// --- SERVER ACTION ---
+// --- SERVER ACTION: SEPETE EKLE ---
 async function addToCart(formData: FormData) {
   "use server";
   
-  // 1. Clerk Bilgilerini Al
-  const { userId } = await auth();
-  const userClerk = await currentUser();
-  
-  if (!userId || !userClerk) return;
-
-  const productId = Number(formData.get("productId"));
-  const db = getDb();
-  let shouldRedirect = false;
-
   try {
-    // 2. Kullanıcıyı DB'de Bul veya Oluştur
-    // (Karmaşık JOIN sorguları yerine düz mantık)
-    const [users]: any = await db.query('SELECT id FROM users WHERE clerk_id = ?', [userId]);
-    let dbUserId = users[0]?.id;
+    // 1. Authentication check
+    const { userId } = await auth();
+    const userClerk = await currentUser();
+    
+    if (!userId || !userClerk) {
+      throw new Error("Kullanıcı kimlik doğrulaması başarısız");
+    }
+
+    // 2. Validate productId
+    const productIdRaw = formData.get("productId");
+    if (!productIdRaw) {
+      throw new Error("Ürün ID'si bulunamadı");
+    }
+
+    const productId = Number(productIdRaw);
+    if (isNaN(productId) || productId <= 0) {
+      throw new Error("Geçersiz ürün ID'si");
+    }
+
+    // 3. Get database connection with error handling
+    let db: mysql.Pool;
+    try {
+      db = getDb();
+    } catch (dbError) {
+      const error = dbError as DatabaseError;
+      console.error("Database connection error:", error);
+      throw new Error("Veritabanı bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.");
+    }
+
+    // 4. Verify product exists
+    let productRows: mysql.RowDataPacket[];
+    try {
+      [productRows] = await db.query<mysql.RowDataPacket[]>(
+        'SELECT id, name, price FROM products WHERE id = ?',
+        [productId]
+      );
+    } catch (error) {
+      const dbError = error as DatabaseError;
+      console.error("Product query error:", dbError);
+      throw new Error("Ürün bilgileri alınamadı. Veritabanı hatası.");
+    }
+
+    if (!productRows || productRows.length === 0) {
+      throw new Error("Ürün bulunamadı");
+    }
+
+    // 5. Get or create user in database
+    let userRows: mysql.RowDataPacket[];
+    try {
+      [userRows] = await db.query<mysql.RowDataPacket[]>(
+        'SELECT id FROM users WHERE clerk_id = ?',
+        [userId]
+      );
+    } catch (error) {
+      const dbError = error as DatabaseError;
+      console.error("User query error:", dbError);
+      throw new Error("Kullanıcı bilgileri alınamadı. Veritabanı hatası.");
+    }
+
+    let dbUserId: number | undefined = userRows[0]?.id as number | undefined;
 
     if (!dbUserId) {
-        // Kullanıcı yoksa hemen oluştur
-        const email = userClerk.emailAddresses[0]?.emailAddress || "no-mail";
-        const name = userClerk.firstName || "Gezgin";
-        
-        const result: any = await db.query(
-            'INSERT INTO users (clerk_id, email, username, coins) VALUES (?, ?, ?, 1000)',
-            [userId, email, name]
+      // Create new user if doesn't exist
+      const email = userClerk.emailAddresses[0]?.emailAddress || "no-mail";
+      const name = userClerk.firstName || "Gezgin";
+      
+      try {
+        const [insertResult] = await db.query<mysql.ResultSetHeader>(
+          'INSERT INTO users (clerk_id, email, username, coins) VALUES (?, ?, ?, 1000)',
+          [userId, email, name]
         );
-        dbUserId = result.insertId; // Yeni ID'yi al
         
-        // Eğer insertId dönmezse tekrar select at (TiDB garantisi)
-        if (!dbUserId) {
-             const [newUsers]: any = await db.query('SELECT id FROM users WHERE clerk_id = ?', [userId]);
-             dbUserId = newUsers[0]?.id;
+        dbUserId = insertResult.insertId;
+        
+        // Fallback: If insertId is not available, query again
+        if (!dbUserId || dbUserId === 0) {
+          const [newUserRows] = await db.query<mysql.RowDataPacket[]>(
+            'SELECT id FROM users WHERE clerk_id = ?',
+            [userId]
+          );
+          dbUserId = newUserRows[0]?.id as number | undefined;
         }
+      } catch (error) {
+        const dbError = error as DatabaseError;
+        console.error("User creation error:", dbError);
+        throw new Error("Kullanıcı oluşturulamadı. Veritabanı hatası.");
+      }
+
+      if (!dbUserId) {
+        throw new Error("Kullanıcı ID'si alınamadı");
+      }
     }
 
-    // 3. Sepete Ekle (Basit, Hata Vermez)
-    // Önce var mı diye bak
-    const [cartItems]: any = await db.query(
-        'SELECT id FROM cart WHERE user_id = ? AND product_id = ?',
+    // 6. Check if product already in cart
+    let cartRows: mysql.RowDataPacket[];
+    try {
+      [cartRows] = await db.query<mysql.RowDataPacket[]>(
+        'SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?',
         [dbUserId, productId]
-    );
-
-    if (cartItems.length > 0) {
-        // Varsa artır
-        await db.query('UPDATE cart SET quantity = quantity + 1 WHERE id = ?', [cartItems[0].id]);
-    } else {
-        // Yoksa ekle
-        await db.query('INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, 1)', [dbUserId, productId]);
+      );
+    } catch (error) {
+      const dbError = error as DatabaseError;
+      console.error("Cart query error:", dbError);
+      throw new Error("Sepet bilgileri alınamadı. Veritabanı hatası.");
     }
 
-    shouldRedirect = true;
+    // 7. Add or update cart item
+    try {
+      if (cartRows && cartRows.length > 0) {
+        // Update existing cart item quantity
+        await db.query(
+          'UPDATE cart SET quantity = quantity + 1 WHERE id = ?',
+          [cartRows[0].id]
+        );
+      } else {
+        // Insert new cart item
+        await db.query(
+          'INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, 1)',
+          [dbUserId, productId]
+        );
+      }
+    } catch (error) {
+      const dbError = error as DatabaseError;
+      console.error("Cart update error:", dbError);
+      throw new Error("Sepete ekleme başarısız. Veritabanı hatası.");
+    }
+
+    // 8. Success - revalidate and redirect
+    revalidatePath("/dashboard/cart");
+    revalidatePath("/dashboard/market");
+    redirect("/dashboard/cart");
 
   } catch (error) {
-    console.error("CRITICAL ERROR:", error);
-    // Hata olsa bile kullanıcıya hissettirme, belki loglarda görürüz
-  }
-
-  // 4. Yönlendirme (Try-Catch DIŞINDA olmak zorunda)
-  if (shouldRedirect) {
-      revalidatePath("/dashboard/cart");
-      redirect("/dashboard/cart");
+    // Log error for debugging
+    const errorMessage = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu";
+    console.error("addToCart error:", error);
+    
+    // Re-throw to be handled by Next.js error boundary or return to same page
+    // In production, you might want to use a toast notification system
+    throw new Error(errorMessage);
   }
 }
 
@@ -76,9 +159,25 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { userId } = await auth();
   if (!userId) redirect("/");
 
-  const db = getDb();
-  const [products]: any = await db.query('SELECT * FROM products WHERE id = ?', [id]);
-  const product = products[0];
+  let db: mysql.Pool;
+  try {
+    db = getDb();
+  } catch (error) {
+    console.error("Database connection error in ProductDetailPage:", error);
+    throw new Error("Veritabanı bağlantısı kurulamadı");
+  }
+
+  let product: mysql.RowDataPacket | null = null;
+  try {
+    const [products] = await db.query<mysql.RowDataPacket[]>(
+      'SELECT * FROM products WHERE id = ?',
+      [id]
+    );
+    product = products[0] || null;
+  } catch (error) {
+    console.error("Error fetching product:", error);
+    throw new Error("Ürün bilgileri alınamadı");
+  }
 
   if (!product) return notFound();
 
